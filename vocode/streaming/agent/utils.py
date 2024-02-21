@@ -1,5 +1,6 @@
 from copy import deepcopy
 import re
+import time
 from typing import (
     Dict,
     Any,
@@ -12,8 +13,8 @@ from typing import (
     TypeVar,
     Union,
 )
+import logging
 
-from openai.openai_object import OpenAIObject
 from vocode.streaming.models.actions import FunctionCall, FunctionFragment
 from vocode.streaming.models.events import Sender
 from vocode.streaming.models.transcript import (
@@ -31,6 +32,8 @@ async def collate_response_async(
     gen: AsyncIterable[Union[str, FunctionFragment]],
     sentence_endings: List[str] = SENTENCE_ENDINGS,
     get_functions: Literal[True, False] = False,
+    logger: Optional[logging.Logger] = None,
+    start_token_processing: Optional[float] = time.time()
 ) -> AsyncGenerator[Union[str, FunctionCall], None]:
     sentence_endings_pattern = "|".join(map(re.escape, sentence_endings))
     list_item_ending_pattern = r"\n"
@@ -43,6 +46,10 @@ async def collate_response_async(
             continue
         if isinstance(token, str):
             if prev_ends_with_money and token.startswith(" "):
+                if logger:
+                    logger.debug("Took %s to generate [%s]", 
+                                 time.time() - start_token_processing, 
+                                 buffer.strip())
                 yield buffer.strip()
                 buffer = ""
 
@@ -58,6 +65,10 @@ async def collate_response_async(
                 if not ends_with_money:
                     to_return = buffer.strip()
                     if to_return:
+                        if logger:
+                            logger.debug("Took %s to generate [%s]",
+                              time.time() - start_token_processing,
+                              to_return)
                         yield to_return
                     buffer = ""
             prev_ends_with_money = ends_with_money
@@ -66,6 +77,10 @@ async def collate_response_async(
             function_args_buffer += token.arguments
     to_return = buffer.strip()
     if to_return:
+        if logger:
+            logger.debug("Took %s to generate [%s]",
+                time.time() - start_token_processing,
+                to_return)
         yield to_return
     if function_name_buffer and get_functions:
         yield FunctionCall(name=function_name_buffer, arguments=function_args_buffer)
@@ -73,28 +88,36 @@ async def collate_response_async(
 
 async def openai_get_tokens(gen) -> AsyncGenerator[Union[str, FunctionFragment], None]:
     async for event in gen:
-        choices = event.get("choices", [])
+        choices = event.choices or []
         if len(choices) == 0:
-            continue
+            break
         choice = choices[0]
         if choice.finish_reason:
             break
-        delta = choice.get("delta", {})
-        if "text" in delta and delta["text"] is not None:
-            token = delta["text"]
+        delta = choice.delta or {}
+        if hasattr(delta, "text") and delta.text:
+            token = delta.text
             yield token
-        if "content" in delta and delta["content"] is not None:
-            token = delta["content"]
+        if hasattr(delta, "content") and delta.content:
+            token = delta.content
             yield token
-        elif "function_call" in delta and delta["function_call"] is not None:
-            yield FunctionFragment(
-                name=delta["function_call"]["name"]
-                if "name" in delta["function_call"]
-                else "",
-                arguments=delta["function_call"]["arguments"]
-                if "arguments" in delta["function_call"]
-                else "",
-            )
+            
+        elif hasattr(delta, "tool_calls") and delta.tool_calls:
+            for tool_call in delta.tool_calls:
+                if tool_call.function is not None:
+                    function = tool_call.function
+                    yield FunctionFragment(
+                        name =(
+                            function.name
+                            if hasattr(function, "name") and function.name
+                            else ""
+                        ),
+                        arguments=(
+                            function.arguments
+                            if hasattr(function, "arguments") and function.arguments
+                            else ""
+                        )
+                    )
 
 
 def find_last_punctuation(buffer: str) -> Optional[int]:

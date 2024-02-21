@@ -67,6 +67,9 @@ from vocode.streaming.utils.worker import (
     InterruptibleAgentResponseEvent,
     InterruptibleWorker,
 )
+from vocode.streaming.input_device.stream_handler import (
+    AudioStreamHandler
+)
 
 OutputDeviceType = TypeVar("OutputDeviceType", bound=BaseOutputDevice)
 
@@ -383,6 +386,7 @@ class StreamingConversation(Generic[OutputDeviceType]):
         )
         self.output_device = output_device
         self.transcriber = transcriber
+        self.audio_stream_handler = AudioStreamHandler(conversation_id=self.id, transcriber=transcriber)
         self.agent = agent
         self.synthesizer = synthesizer
         self.synthesis_enabled = True
@@ -558,7 +562,8 @@ class StreamingConversation(Generic[OutputDeviceType]):
         self.transcriptions_worker.consume_nonblocking(transcription)
 
     def receive_audio(self, chunk: bytes):
-        self.transcriber.send_audio(chunk)
+        # self.transcriber.send_audio(chunk)
+        self.audio_stream_handler.receive_audio(chunk=chunk)
 
     def warmup_synthesizer(self):
         self.synthesizer.ready_synthesizer()
@@ -673,6 +678,9 @@ class StreamingConversation(Generic[OutputDeviceType]):
     async def terminate(self):
         self.mark_terminated()
         self.broadcast_interrupt()
+        if self.audio_stream_handler.vad_wrapper:
+            self.audio_stream_handler.vad_wrapper.reset_states()
+            self.logger.debug(f"Reset VAD model states")
         self.events_manager.publish_event(
             TranscriptCompleteEvent(conversation_id=self.id, transcript=self.transcript)
         )
