@@ -127,9 +127,9 @@ class StreamingConversation(Generic[OutputDeviceType]):
                 self.conversation.logger.info("###### Synthesis task is running, has been canceled ######")
             has_agent_task = self.conversation.agent_responses_worker.current_task
             if has_agent_task and not self.conversation.agent_responses_worker.current_task.done():
-                self.conversation.logger.info("###### Agent Response task is running, attempting to cancel it ######")
+                self.conversation.logger.info("&&&&&&& Agent Response task is running, attempting to cancel it &&&&&&&")
                 self.conversation.agent_responses_worker.current_task.cancel()
-                self.conversation.logger.info("###### Agent Response task is running, has been canceled ######")
+                self.conversation.logger.info("&&&&&&& Agent Response task is running, has been canceled &&&&&&&")
 
         async def process(self, transcription: Transcription):
             self.conversation.mark_last_action_timestamp()
