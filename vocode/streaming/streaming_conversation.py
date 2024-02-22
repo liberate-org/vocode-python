@@ -124,6 +124,14 @@ class StreamingConversation(Generic[OutputDeviceType]):
             if transcription.message.strip() == "":
                 self.conversation.logger.info("Ignoring empty transcription")
                 return
+            elif transcription.message.strip() == "<INTERRUPT>" and transcription.confidence == 1.0:
+                self.conversation.logger.info("###### Deepgram detected the human is speaking from VAD event ######")
+                self.conversation.logger.info("###### Attempting to stop any synthisis tasks running ######")
+                has_task = self.conversation.synthesis_results_worker.current_task is not None
+                if has_task and not self.conversation.synthesis_results_worker.current_task.done():
+                    self.conversation.logger.info("###### Synthisis task is running, attempting to cancel it ######")
+                    self.conversation.synthesis_results_worker.current_task.cancel()
+                    self.conversation.logger.info("###### Synthisis task is running, has been canceled ######")
             if transcription.is_final:
                 self.conversation.logger.debug(
                     "Got transcription: {}, confidence: {}".format(

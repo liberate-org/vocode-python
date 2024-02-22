@@ -55,7 +55,7 @@ class ChatGPTAgent(RespondAgent[ChatGPTAgentConfig]):
         else:
             self.openaiAsyncClient = AsyncOpenAI(
                 base_url = "https://api.openai.com/v1",
-                api_key = openai_api_key or getenv("OPENAI_API_KEY")
+                api_key = openai_api_key or getenv("OPENAI_API_KEY"),
             )
             self.openaiSyncClient = OpenAI(
                 base_url = "https://api.openai.com/v1",
@@ -141,6 +141,7 @@ class ChatGPTAgent(RespondAgent[ChatGPTAgentConfig]):
             text = self.first_response
         else:
             chat_parameters = self.get_chat_parameters()
+            chat_parameters["stream"] = True
             # chat_completion = await openai.ChatCompletion.acreate(**chat_parameters)
             chat_completion = await self.openaiAsyncClient.chat.completions.create(**chat_parameters)
             text = chat_completion.choices[0].message.content
