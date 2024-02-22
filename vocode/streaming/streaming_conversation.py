@@ -137,8 +137,6 @@ class StreamingConversation(Generic[OutputDeviceType]):
                 self.conversation.logger.info("Ignoring empty transcription")
                 return
             elif transcription.message.strip() == "<INTERRUPT>" and transcription.confidence == 1.0:
-                self.conversation.logger.info("###### Deepgram detected the human is speaking from VAD event ######")
-                self.conversation.logger.info("###### Attempting to stop any synthesis tasks running ######")
                 self.kill_tasks_when_human_is_talking()
 
             if transcription.is_final:
@@ -174,7 +172,6 @@ class StreamingConversation(Generic[OutputDeviceType]):
                 )
                 self.output_queue.put_nowait(event)
             else:
-                self.conversation.logger.debug(f"######## Transcript is not final - killing agent and synth tasks #######")
                 self.kill_tasks_when_human_is_talking()
 
     class FillerAudioWorker(InterruptibleAgentResponseWorker):
