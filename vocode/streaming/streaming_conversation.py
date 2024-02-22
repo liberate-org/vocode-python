@@ -119,6 +119,18 @@ class StreamingConversation(Generic[OutputDeviceType]):
             self.conversation = conversation
             self.interruptible_event_factory = interruptible_event_factory
 
+        def kill_tasks_when_human_is_talking(self):
+            has_task = self.conversation.synthesis_results_worker.current_task is not None
+            if has_task and not self.conversation.synthesis_results_worker.current_task.done():
+                self.conversation.logger.info("###### Synthesis task is running, attempting to cancel it ######")
+                self.conversation.synthesis_results_worker.current_task.cancel()
+                self.conversation.logger.info("###### Synthesis task is running, has been canceled ######")
+            has_agent_task = self.conversation.agent_responses_worker.current_task
+            if has_agent_task and not self.conversation.agent_responses_worker.current_task.done():
+                self.conversation.logger.info("###### Agent Response task is running, attempting to cancel it ######")
+                self.conversation.agent_responses_worker.current_task.cancel()
+                self.conversation.logger.info("###### Agent Response task is running, has been canceled ######")
+
         async def process(self, transcription: Transcription):
             self.conversation.mark_last_action_timestamp()
             if transcription.message.strip() == "":
@@ -127,17 +139,8 @@ class StreamingConversation(Generic[OutputDeviceType]):
             elif transcription.message.strip() == "<INTERRUPT>" and transcription.confidence == 1.0:
                 self.conversation.logger.info("###### Deepgram detected the human is speaking from VAD event ######")
                 self.conversation.logger.info("###### Attempting to stop any synthesis tasks running ######")
-                has_task = self.conversation.synthesis_results_worker.current_task is not None
-                if has_task and not self.conversation.synthesis_results_worker.current_task.done():
-                    self.conversation.logger.info("###### Synthesis task is running, attempting to cancel it ######")
-                    self.conversation.synthesis_results_worker.current_task.cancel()
-                    self.conversation.logger.info("###### Synthesis task is running, has been canceled ######")
-                has_agent_task = self.conversation.agent_responses_worker.current_task
-                if has_agent_task and not self.conversation.agent_responses_worker.current_task.done():
-                    self.conversation.logger.info("###### Agent Response task is running, attempting to cancel it ######")
-                    self.conversation.agent_responses_worker.current_task.cancel()
-                    self.conversation.logger.info("###### Agent Response task is running, has been canceled ######")
-                    
+                self.kill_tasks_when_human_is_talking()
+
             if transcription.is_final:
                 self.conversation.logger.debug(
                     "Got transcription: {}, confidence: {}".format(
@@ -170,6 +173,9 @@ class StreamingConversation(Generic[OutputDeviceType]):
                     )
                 )
                 self.output_queue.put_nowait(event)
+            else:
+                self.conversation.logger.debug(f"######## Transcript is not final - killing agent and synth tasks #######")
+                self.kill_tasks_when_human_is_talking()
 
     class FillerAudioWorker(InterruptibleAgentResponseWorker):
         """
