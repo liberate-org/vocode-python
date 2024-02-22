@@ -12,6 +12,9 @@ from vocode.streaming.telephony.constants import (
 )
 from .audio_encoding import AudioEncoding
 from .model import TypedModel
+from pydantic import (
+    BaseModel
+)
 
 AZURE_DEFAULT_LANGUAGE = "en-US"
 
@@ -46,6 +49,9 @@ class PunctuationEndpointingConfig(
 ):
     time_cutoff_seconds: float = 0.4
 
+class InputDeviceConfig(BaseModel):
+    sampling_rate: int
+    audio_encoding: AudioEncoding
 
 class TranscriberConfig(TypedModel, type=TranscriberType.BASE.value):
     sampling_rate: int
@@ -55,12 +61,35 @@ class TranscriberConfig(TypedModel, type=TranscriberType.BASE.value):
     downsampling: Optional[int] = None
     min_interrupt_confidence: Optional[float] = None
     mute_during_speech: bool = False
+    input_device_config: Optional[InputDeviceConfig] = None
+    vad: bool = False
 
     @validator("min_interrupt_confidence")
     def min_interrupt_confidence_must_be_between_0_and_1(cls, v):
         if v is not None and (v < 0 or v > 1):
             raise ValueError("must be between 0 and 1")
         return v
+
+    @classmethod
+    def from_input_device_config_vad(
+            cls,
+            input_device: BaseInputDevice,
+            endpointing_config: Optional[EndpointingConfig] = None,
+            **kwargs,
+    ):
+        return cls(
+            sampling_rate=8000,
+            audio_encoding=AudioEncoding.LINEAR16,  # This is for VAD 8k and 16bit linear pcm
+            chunk_size=input_device.chunk_size,
+            endpointing_config=endpointing_config,
+            vad=True,
+            # this is used for mapping the input device to the transcriber
+            input_device_config=InputDeviceConfig(
+                sampling_rate=input_device.sampling_rate,
+                audio_encoding=input_device.audio_encoding
+            ),
+            **kwargs,
+        )
 
     @classmethod
     def from_input_device(

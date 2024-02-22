@@ -1,7 +1,9 @@
 import os
 import asyncio
 from typing import Optional
-import openai
+from openai import (
+    AsyncOpenAI
+)
 import numpy as np
 import requests
 
@@ -29,8 +31,10 @@ class GoodbyeModel:
         ),
         openai_api_key: Optional[str] = None,
     ):
-        openai.api_key = openai_api_key or getenv("OPENAI_API_KEY")
-        if not openai.api_key:
+        self.openaiAsyncClient = AsyncOpenAI(
+            api_key=openai_api_key or getenv("OPENAI_API_KEY")
+        )
+        if not self.openaiAsyncClient.api_key:
             raise ValueError("OPENAI_API_KEY must be set in environment or passed in")
         self.embeddings_cache_path = embeddings_cache_path
         self.goodbye_embeddings: Optional[np.ndarray] = None
@@ -75,8 +79,10 @@ class GoodbyeModel:
         else:
             params["model"] = "text-embedding-ada-002"
 
+        response = await self.openaiAsyncClient.embeddings.create(**params)
+        
         return np.array(
-            (await openai.Embedding.acreate(**params))["data"][0]["embedding"]
+            response.data[0].embedding
         )
 
 
