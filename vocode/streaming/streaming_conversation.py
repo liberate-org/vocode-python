@@ -126,12 +126,18 @@ class StreamingConversation(Generic[OutputDeviceType]):
                 return
             elif transcription.message.strip() == "<INTERRUPT>" and transcription.confidence == 1.0:
                 self.conversation.logger.info("###### Deepgram detected the human is speaking from VAD event ######")
-                self.conversation.logger.info("###### Attempting to stop any synthisis tasks running ######")
+                self.conversation.logger.info("###### Attempting to stop any synthesis tasks running ######")
                 has_task = self.conversation.synthesis_results_worker.current_task is not None
                 if has_task and not self.conversation.synthesis_results_worker.current_task.done():
-                    self.conversation.logger.info("###### Synthisis task is running, attempting to cancel it ######")
+                    self.conversation.logger.info("###### Synthesis task is running, attempting to cancel it ######")
                     self.conversation.synthesis_results_worker.current_task.cancel()
-                    self.conversation.logger.info("###### Synthisis task is running, has been canceled ######")
+                    self.conversation.logger.info("###### Synthesis task is running, has been canceled ######")
+                has_agent_task = self.conversation.agent_responses_worker.current_task
+                if has_agent_task and not self.conversation.agent_responses_worker.current_task.done():
+                    self.conversation.logger.info("###### Agent Response task is running, attempting to cancel it ######")
+                    self.conversation.agent_responses_worker.current_task.cancel()
+                    self.conversation.logger.info("###### Agent Response task is running, has been canceled ######")
+                    
             if transcription.is_final:
                 self.conversation.logger.debug(
                     "Got transcription: {}, confidence: {}".format(
