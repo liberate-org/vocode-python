@@ -73,7 +73,6 @@ from vocode.streaming.input_device.stream_handler import (
 
 OutputDeviceType = TypeVar("OutputDeviceType", bound=BaseOutputDevice)
 
-
 class StreamingConversation(Generic[OutputDeviceType]):
     class QueueingInterruptibleEventFactory(InterruptibleEventFactory):
         def __init__(self, conversation: "StreamingConversation"):
@@ -119,11 +118,27 @@ class StreamingConversation(Generic[OutputDeviceType]):
             self.conversation = conversation
             self.interruptible_event_factory = interruptible_event_factory
 
+        def kill_tasks_when_human_is_talking(self):
+            has_task = self.conversation.synthesis_results_worker.current_task is not None
+            if has_task and not self.conversation.synthesis_results_worker.current_task.done():
+                self.conversation.logger.info("###### Synthesis task is running, attempting to cancel it ######")
+                self.conversation.synthesis_results_worker.current_task.cancel()
+                self.conversation.logger.info("###### Synthesis task is running, has been canceled ######")
+            has_agent_task = self.conversation.agent_responses_worker.current_task
+            if has_agent_task and not self.conversation.agent_responses_worker.current_task.done():
+                self.conversation.logger.info("&&&&&&& Agent Response task is running, attempting to cancel it &&&&&&&")
+                self.conversation.agent_responses_worker.current_task.cancel()
+                self.conversation.logger.info("&&&&&&& Agent Response task is running, has been canceled &&&&&&&")
+
         async def process(self, transcription: Transcription):
             self.conversation.mark_last_action_timestamp()
             if transcription.message.strip() == "":
                 self.conversation.logger.info("Ignoring empty transcription")
                 return
+            elif transcription.message.strip() == "<INTERRUPT>" and transcription.confidence == 1.0:
+                # self.kill_tasks_when_human_is_talking()
+                self.conversation.broadcast_interrupt()
+
             if transcription.is_final:
                 self.conversation.logger.debug(
                     "Got transcription: {}, confidence: {}".format(
@@ -156,6 +171,10 @@ class StreamingConversation(Generic[OutputDeviceType]):
                     )
                 )
                 self.output_queue.put_nowait(event)
+                self.conversation.mark_last_final_transcript_from_human()
+            # else:
+            #     self.kill_tasks_when_human_is_talking()
+            #     self.conversation.broadcast_interrupt()
 
     class FillerAudioWorker(InterruptibleAgentResponseWorker):
         """
@@ -365,6 +384,7 @@ class StreamingConversation(Generic[OutputDeviceType]):
                             await self.conversation.terminate()
                     except asyncio.TimeoutError:
                         pass
+                self.conversation.mark_last_agent_response()
             except asyncio.CancelledError:
                 pass
 
@@ -508,6 +528,12 @@ class StreamingConversation(Generic[OutputDeviceType]):
         self.check_for_idle_task = asyncio.create_task(self.check_for_idle())
         if len(self.events_manager.subscriptions) > 0:
             self.events_task = asyncio.create_task(self.events_manager.start())
+        if (
+            self.synthesizer.get_synthesizer_config().reengage_timeout and
+            (self.synthesizer.get_synthesizer_config().reengage_options and
+             len(self.synthesizer.get_synthesizer_config().reengage_options) > 0)
+        ):
+            self.human_prompt_checker = asyncio.create_task(self.check_if_human_should_be_prompted())
 
     async def send_initial_message(self, initial_message: BaseMessage):
         # TODO: configure if initial message is interruptible
@@ -571,6 +597,13 @@ class StreamingConversation(Generic[OutputDeviceType]):
     def mark_last_action_timestamp(self):
         self.last_action_timestamp = time.time()
 
+    def mark_last_final_transcript_from_human(self):
+        self.last_final_transcript_from_human = time.time()
+    
+    def mark_last_agent_response(self):
+        self.last_agent_response = time.time()
+
+
     def broadcast_interrupt(self):
         """Stops all inflight events and cancels all workers that are sending output
 
@@ -588,12 +621,31 @@ class StreamingConversation(Generic[OutputDeviceType]):
                 break
         self.agent.cancel_current_task()
         self.agent_responses_worker.cancel_current_task()
+
+        # Clearing these queues cuts time from finishing interruption talking to bot talking cut by 1 second from ~4.5 to ~3.5 seconds.
+        self.clear_queue(self.agent.output_queue, 'agent.output_queue')
+        self.clear_queue(self.agent_responses_worker.output_queue, 'agent_responses_worker.output_queue')
+        self.clear_queue(self.agent_responses_worker.input_queue, 'agent_responses_worker.input_queue')
+        self.clear_queue(self.synthesis_results_worker.output_queue, 'synthesis_results_worker.output_queue')
+        self.clear_queue(self.synthesis_results_worker.input_queue, 'synthesis_results_worker.input_queue')
+        if hasattr(self.output_device, 'queue'):
+            self.clear_queue(self.output_device.queue, 'output_device.queue')
+        
         return num_interrupts > 0
 
     def is_interrupt(self, transcription: Transcription):
         return transcription.confidence >= (
             self.transcriber.get_transcriber_config().min_interrupt_confidence or 0
         )
+
+    @staticmethod
+    def clear_queue(q: asyncio.Queue, queue_name: str):
+        while not q.empty():
+            logging.info(f'Clearing queue {queue_name} with size {q.qsize()}')
+            try:
+                q.get_nowait()
+            except asyncio.QueueEmpty:
+                continue
 
     async def send_speech_to_output(
         self,
@@ -726,3 +778,41 @@ class StreamingConversation(Generic[OutputDeviceType]):
 
     def is_active(self):
         return self.active
+
+    async def check_if_human_should_be_prompted(self):
+        self.logger.debug("starting should prompt user task")
+        self.last_agent_response = None
+        self.last_final_transcript_from_human = None
+        reengage_timeout = self.synthesizer.get_synthesizer_config().reengage_timeout
+        reengage_options = self.synthesizer.get_synthesizer_config().reengage_options
+        while self.active:
+            if self.last_agent_response and self.last_final_transcript_from_human:
+                last_human_touchpoint = time.time() - self.last_final_transcript_from_human
+                last_agent_touchpoint = time.time() - self.last_agent_response
+                if last_human_touchpoint >= reengage_timeout and last_agent_touchpoint >= reengage_timeout:
+                    reengage_statement = random.choice(reengage_options)
+                    self.logger.debug(f"Prompting user with {reengage_statement}: no interaction has happened in {reengage_timeout} seconds")
+                    self.chunk_size = (
+                        get_chunk_size_per_second(
+                            self.synthesizer.get_synthesizer_config().audio_encoding,
+                            self.synthesizer.get_synthesizer_config().sampling_rate,
+                        )
+                        * TEXT_TO_SPEECH_CHUNK_SIZE_SECONDS
+                    )
+                    message = BaseMessage(text=reengage_statement)
+                    synthesis_result = await self.synthesizer.create_speech(
+                        message,
+                        self.chunk_size,
+                        bot_sentiment=self.bot_sentiment,
+                    )
+                    self.agent_responses_worker.produce_interruptible_agent_response_event_nonblocking(
+                        (message, synthesis_result),
+                        is_interruptible=True,
+                        agent_response_tracker=asyncio.Event(),
+                    )
+                    self.mark_last_agent_response()
+                await asyncio.sleep(1)
+            else:
+                await asyncio.sleep(1)
+        self.logger.debug("stopped check if human should be prompted")
+        
