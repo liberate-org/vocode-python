@@ -529,9 +529,9 @@ class StreamingConversation(Generic[OutputDeviceType]):
         if len(self.events_manager.subscriptions) > 0:
             self.events_task = asyncio.create_task(self.events_manager.start())
         if (
-            self.synthesizer.get_synthesizer_config().reengage_timeout and
-            (self.synthesizer.get_synthesizer_config().reengage_options and
-             len(self.synthesizer.get_synthesizer_config().reengage_options) > 0)
+            self.agent.get_agent_config().reengage_timeout and
+            (self.agent.get_agent_config().reengage_options and
+             len(self.agent.get_agent_config().reengage_options) > 0)
         ):
             self.human_prompt_checker = asyncio.create_task(self.check_if_human_should_be_prompted())
 
@@ -783,8 +783,8 @@ class StreamingConversation(Generic[OutputDeviceType]):
         self.logger.debug("starting should prompt user task")
         self.last_agent_response = None
         self.last_final_transcript_from_human = None
-        reengage_timeout = self.synthesizer.get_synthesizer_config().reengage_timeout
-        reengage_options = self.synthesizer.get_synthesizer_config().reengage_options
+        reengage_timeout = self.agent.get_agent_config().reengage_timeout
+        reengage_options = self.agent.get_agent_config().reengage_options
         while self.active:
             if self.last_agent_response and self.last_final_transcript_from_human:
                 last_human_touchpoint = time.time() - self.last_final_transcript_from_human
