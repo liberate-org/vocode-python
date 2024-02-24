@@ -73,14 +73,6 @@ from vocode.streaming.input_device.stream_handler import (
 
 OutputDeviceType = TypeVar("OutputDeviceType", bound=BaseOutputDevice)
 
-REENGAGE_STATEMENTS = [
-    "Hi, are you still there?",
-    "I'm here when your ready.",
-    "Hello, I'm here when you're ready to continue",
-    "Let me know when you're ready to continue.",
-    "Sorry, I might have missed the last thing you said."
-]
-
 class StreamingConversation(Generic[OutputDeviceType]):
     class QueueingInterruptibleEventFactory(InterruptibleEventFactory):
         def __init__(self, conversation: "StreamingConversation"):
