@@ -43,6 +43,8 @@ class SynthesizerConfig(TypedModel, type=SynthesizerType.BASE.value):
     audio_encoding: AudioEncoding
     should_encode_as_wav: bool = False
     sentiment_config: Optional[SentimentConfig] = None
+    reengage_timeout: Optional[float] = None
+    reengage_options: Optional[List[str]] = None
 
     class Config:
         arbitrary_types_allowed = True
