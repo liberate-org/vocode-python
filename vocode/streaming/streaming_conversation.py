@@ -137,7 +137,8 @@ class StreamingConversation(Generic[OutputDeviceType]):
                 return
             elif transcription.message.strip() == "<INTERRUPT>" and transcription.confidence == 1.0:
                 # self.kill_tasks_when_human_is_talking()
-                self.conversation.broadcast_interrupt()
+                # self.conversation.broadcast_interrupt()
+                pass
 
             if transcription.is_final:
                 self.conversation.logger.debug(
