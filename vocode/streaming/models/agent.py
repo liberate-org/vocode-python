@@ -72,6 +72,8 @@ class AgentConfig(TypedModel, type=AgentType.BASE.value):
     webhook_config: Optional[WebhookConfig] = None
     track_bot_sentiment: bool = False
     actions: Optional[List[ActionConfig]] = None
+    reengage_timeout: Optional[float] = None
+    reengage_options: Optional[List[str]] = None
 
 
 class CutOffResponse(BaseModel):
