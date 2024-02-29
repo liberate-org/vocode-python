@@ -320,6 +320,7 @@ class StreamingConversation(Generic[OutputDeviceType]):
                     is_interruptible=item.is_interruptible,
                     agent_response_tracker=item.agent_response_tracker,
                 )
+                self.conversation.mark_last_agent_response()
             except asyncio.CancelledError:
                 pass
 
@@ -385,7 +386,6 @@ class StreamingConversation(Generic[OutputDeviceType]):
                             await self.conversation.terminate()
                     except asyncio.TimeoutError:
                         pass
-                self.conversation.mark_last_agent_response()
             except asyncio.CancelledError:
                 pass
 
@@ -712,6 +712,7 @@ class StreamingConversation(Generic[OutputDeviceType]):
                 "Sent chunk {} with size {}".format(chunk_idx, len(chunk_result.chunk))
             )
             self.mark_last_action_timestamp()
+            self.mark_last_agent_response()
             chunk_idx += 1
             seconds_spoken += seconds_per_chunk
             if transcript_message:
@@ -790,7 +791,7 @@ class StreamingConversation(Generic[OutputDeviceType]):
             if self.last_agent_response and self.last_final_transcript_from_human:
                 last_human_touchpoint = time.time() - self.last_final_transcript_from_human
                 last_agent_touchpoint = time.time() - self.last_agent_response
-                if last_human_touchpoint >= reengage_timeout and last_agent_touchpoint >= reengage_timeout:
+                if (last_human_touchpoint >= reengage_timeout) and (last_agent_touchpoint >= reengage_timeout):
                     reengage_statement = random.choice(reengage_options)
                     self.logger.debug(f"Prompting user with {reengage_statement}: no interaction has happened in {reengage_timeout} seconds")
                     self.chunk_size = (
@@ -812,7 +813,7 @@ class StreamingConversation(Generic[OutputDeviceType]):
                         agent_response_tracker=asyncio.Event(),
                     )
                     self.mark_last_agent_response()
-                await asyncio.sleep(1)
+                await asyncio.sleep(2.5)
             else:
                 await asyncio.sleep(1)
         self.logger.debug("stopped check if human should be prompted")

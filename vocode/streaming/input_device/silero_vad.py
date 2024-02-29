@@ -22,7 +22,8 @@ class SileroVAD:
                 repo_or_dir='silero-vad',
                 model='silero_vad',
                 source='local',
-                onnx=use_onnx
+                onnx=use_onnx,
+                trust_repo=True
             )
         except FileNotFoundError:
             self.logger.warning("Could not find local VAD model, downloading from GitHub!")
@@ -30,7 +31,8 @@ class SileroVAD:
                 repo_or_dir='snakers4/silero-vad',
                 model='silero_vad',
                 source='github',
-                onnx=use_onnx
+                onnx=use_onnx,
+                trust_repo=True
             )
         return model
 
