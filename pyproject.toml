@@ -45,11 +45,11 @@ boto3 = "^1.28.28"
 pandas = "2.0.3"
 torch = [
     { platform = "darwin", version = "=2.1.1" },
-    { platform = "linux", url = "https://download.pytorch.org/whl/cpu/torch-2.1.1%2Bcpu-cp39-cp39-linux_x86_64.whl"}
+    { platform = "linux", version = "=2.1.1", url = "https://download.pytorch.org/whl/cpu"}
 ]
 torchaudio = [
     { platform = "darwin", version = "=2.1.1" },
-    { platform = "linux", url = "https://download.pytorch.org/whl/cpu/torchaudio-2.1.1%2Bcpu-cp39-cp39-linux_x86_64.whl"}
+    { platform = "linux", version = "=2.1.1", url = "https://download.pytorch.org/whl/cpu"}
 ]
 
 [tool.poetry.group.lint.dependencies]
