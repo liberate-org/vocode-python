@@ -43,9 +43,19 @@ google-cloud-aiplatform = {version = "^1.26.0", optional = true}
 miniaudio = "^1.59"
 boto3 = "^1.28.28"
 pandas = "2.0.3"
-torch = "2.1.1"
-torchaudio = "2.1.1"
+torch = [
+  { version = "2.1.1", platform = "darwin", source="torch-cpu" },
+  { version = "2.1.1", platform = "linux", source="torch-cpu" }
+]
+torchaudio = [
+  { version = "2.1.1", platform = "darwin", source="torch-cpu" },
+  { version = "2.1.1", platform = "linux", source="torch-cpu" }
+]
 
+[[tool.poetry.source]]
+name = "torch-cpu"
+priority = "primary"
+url = "https://download.pytorch.org/whl/cpu"
 
 [tool.poetry.group.lint.dependencies]
 black = "^23.1.0"
