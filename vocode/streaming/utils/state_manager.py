@@ -37,6 +37,17 @@ class ConversationStateManager:
     def unmute_agent(self):
         self._conversation.agent.is_muted = False
 
+    def enable_synthetic_hold(self):
+        self.mute_agent()
+        self._conversation.transcriber.is_muted = True
+
+    def disable_synthetic_hold(self):
+        self.unmute_agent
+        self._conversation.transcriber.is_muted = False
+
+    def get_conversation(self):
+        return self._conversation
+
     async def terminate_conversation(self):
         await self._conversation.terminate()
 
