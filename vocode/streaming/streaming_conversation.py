@@ -475,6 +475,7 @@ class StreamingConversation(Generic[OutputDeviceType]):
         self.is_human_speaking = False
         self.active = False
         self.mark_last_action_timestamp()
+        self.is_caller_on_hold = False
 
         self.check_for_idle_task: Optional[asyncio.Task] = None
         self.track_bot_sentiment_task: Optional[asyncio.Task] = None

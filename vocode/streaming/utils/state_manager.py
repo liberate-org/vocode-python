@@ -40,10 +40,12 @@ class ConversationStateManager:
     def enable_synthetic_hold(self):
         self.mute_agent()
         self._conversation.transcriber.is_muted = True
+        self._conversation.is_caller_on_hold = True
 
     def disable_synthetic_hold(self):
         self.unmute_agent()
         self._conversation.transcriber.is_muted = False
+        self._conversation.is_caller_on_hold = True
 
     def get_conversation(self):
         return self._conversation
