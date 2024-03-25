@@ -42,7 +42,7 @@ class ConversationStateManager:
         self._conversation.transcriber.is_muted = True
 
     def disable_synthetic_hold(self):
-        self.unmute_agent
+        self.unmute_agent()
         self._conversation.transcriber.is_muted = False
 
     def get_conversation(self):
