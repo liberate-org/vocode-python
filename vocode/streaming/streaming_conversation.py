@@ -821,9 +821,7 @@ class StreamingConversation(Generic[OutputDeviceType]):
         self.logger.debug("stopped check if human should be prompted")
 
     async def __on_hold_task(self):
-        """
-        Don't call directly, launch task via calling StreamingConversation.start_on_hold
-        """
+        """Don't call directly, launch task via calling StreamingConversation.start_on_hold"""
         self.logger.debug("synthetic hold task starting")
         if self.agent.get_agent_config().reengage_timeout < 1:
             spoof_last_agent_interval = self.agent.get_agent_config().reengage_timeout * .75
