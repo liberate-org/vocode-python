@@ -40,19 +40,24 @@ class ConversationStateManager:
         else:
             self._conversation.agent.is_muted = False
 
-    def enable_synthetic_hold(self):
-        self._conversation.is_caller_on_hold = True
+    def mute_caller(self):
         self._conversation.transcriber.is_muted = True
-        self.mute_agent()
 
-        task_handle = asyncio.create_task(self._conversation._on_hold_task())
-        self._conversation.background_tasks.add(task_handle)
-        task_handle.add_done_callback(self._conversation.background_tasks.discard)
+    def unmute_caller(self):
+        if self._conversation.is_caller_on_hold:
+            print("Unable to unmute caller, the caller is on hold.")
+        else:
+            self._conversation.transcriber.is_muted = False
+
+    def enable_synthetic_hold(self):
+        self.mute_caller()
+        self.mute_agent()
+        self._conversation.start_on_hold()
 
     def disable_synthetic_hold(self):
+        self._conversation.stop_on_hold()
         self.unmute_agent()
-        self._conversation.transcriber.is_muted = False
-        self._conversation.is_caller_on_hold = False
+        self.unmute_caller()
 
     def get_conversation(self):
         return self._conversation

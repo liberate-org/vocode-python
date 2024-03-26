@@ -820,7 +820,10 @@ class StreamingConversation(Generic[OutputDeviceType]):
                 await asyncio.sleep(1)
         self.logger.debug("stopped check if human should be prompted")
 
-    async def _on_hold_task(self):
+    async def __on_hold_task(self):
+        """
+        Don't call directly, launch task via calling StreamingConversation.start_on_hold
+        """
         self.logger.debug("synthetic hold task starting")
         if self.agent.get_agent_config().reengage_timeout < 1:
             spoof_last_agent_interval = self.agent.get_agent_config().reengage_timeout * .75
@@ -833,3 +836,11 @@ class StreamingConversation(Generic[OutputDeviceType]):
             await asyncio.sleep(spoof_last_agent_interval)
         self.logger.debug("synthetic hold task ended")
 
+    def start_on_hold(self):
+        self.is_caller_on_hold = True
+        task_handle = asyncio.create_task(self.__on_hold_task())
+        self.background_tasks.add(task_handle)
+        task_handle.add_done_callback(self.background_tasks.discard)
+
+    def stop_on_hold(self):
+        self.is_caller_on_hold = False
