@@ -832,6 +832,27 @@ class StreamingConversation(Generic[OutputDeviceType]):
             # TODO: send some audio
             self.logger.info(f"** SENDING AUDIO ONE DAY **")
             await asyncio.sleep(spoof_last_agent_interval)
+
+        self.logger.debug(f"Thanking user for holding")
+        # TODO: common code starting here
+        self.chunk_size = (
+            get_chunk_size_per_second(
+                self.synthesizer.get_synthesizer_config().audio_encoding,
+                self.synthesizer.get_synthesizer_config().sampling_rate,
+            )
+            * TEXT_TO_SPEECH_CHUNK_SIZE_SECONDS
+        )
+        message = BaseMessage(text="Thanks for holding")
+        synthesis_result = await self.synthesizer.create_speech(
+            message,
+            self.chunk_size,
+            bot_sentiment=self.bot_sentiment,
+        )
+        self.agent_responses_worker.produce_interruptible_agent_response_event_nonblocking(
+            (message, synthesis_result),
+            is_interruptible=True,
+            agent_response_tracker=asyncio.Event(),
+        )
         self.logger.debug("synthetic hold task ended")
 
     def start_on_hold(self):

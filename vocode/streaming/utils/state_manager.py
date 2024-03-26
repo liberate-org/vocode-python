@@ -35,29 +35,19 @@ class ConversationStateManager:
         self._conversation.agent.is_muted = True
 
     def unmute_agent(self):
-        if self._conversation.is_caller_on_hold:
-            print("Unable to unmute agent, the caller is on hold.")
-        else:
-            self._conversation.agent.is_muted = False
+        self._conversation.agent.is_muted = False
 
     def mute_caller(self):
         self._conversation.transcriber.is_muted = True
 
     def unmute_caller(self):
-        if self._conversation.is_caller_on_hold:
-            print("Unable to unmute caller, the caller is on hold.")
-        else:
-            self._conversation.transcriber.is_muted = False
+        self._conversation.transcriber.is_muted = False
 
     def enable_synthetic_hold(self):
-        self.mute_caller()
-        self.mute_agent()
         self._conversation.start_on_hold()
 
     def disable_synthetic_hold(self):
         self._conversation.stop_on_hold()
-        self.unmute_agent()
-        self.unmute_caller()
 
     def get_conversation(self):
         return self._conversation
