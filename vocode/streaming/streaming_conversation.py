@@ -481,6 +481,7 @@ class StreamingConversation(Generic[OutputDeviceType]):
         self.track_bot_sentiment_task: Optional[asyncio.Task] = None
 
         self.current_transcription_is_interrupt: bool = False
+        self.background_tasks = set()
 
         # tracing
         self.start_time: Optional[float] = None
@@ -818,4 +819,17 @@ class StreamingConversation(Generic[OutputDeviceType]):
             else:
                 await asyncio.sleep(1)
         self.logger.debug("stopped check if human should be prompted")
-        
+
+    async def _on_hold_task(self):
+        self.logger.debug("synthetic hold task starting")
+        if self.agent.get_agent_config().reengage_timeout < 1:
+            spoof_last_agent_interval = self.agent.get_agent_config().reengage_timeout * .75
+        else:
+            spoof_last_agent_interval = 1
+        while self.is_caller_on_hold:
+            self.mark_last_agent_response() # prevent agent from attempting to reengage
+            # TODO: send some audio
+            self.logger.info(f"** SENDING AUDIO ONE DAY **")
+            await asyncio.sleep(spoof_last_agent_interval)
+        self.logger.debug("synthetic hold task ended")
+
