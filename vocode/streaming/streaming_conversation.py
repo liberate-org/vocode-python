@@ -136,9 +136,13 @@ class StreamingConversation(Generic[OutputDeviceType]):
                 self.conversation.logger.info("Ignoring empty transcription")
                 return
             elif transcription.message.strip() == "<INTERRUPT>" and transcription.confidence == 1.0:
-                # self.kill_tasks_when_human_is_talking()
-                # self.conversation.broadcast_interrupt()
-                pass
+                if self.conversation.transcriber.get_transcriber_config().experimental:
+                    self.conversation.is_human_speaking = True
+                    self.conversation.mark_last_final_transcript_from_human()
+                    self.conversation.broadcast_interrupt()
+                    return
+                else:
+                    return
 
             if transcription.is_final:
                 self.conversation.logger.debug(
@@ -588,9 +592,9 @@ class StreamingConversation(Generic[OutputDeviceType]):
         )
         self.transcriptions_worker.consume_nonblocking(transcription)
 
-    def receive_audio(self, chunk: bytes):
+    async def receive_audio(self, chunk: bytes):
         # self.transcriber.send_audio(chunk)
-        self.audio_stream_handler.receive_audio(chunk=chunk)
+        await self.audio_stream_handler.receive_audio(chunk=chunk)
 
     def warmup_synthesizer(self):
         self.synthesizer.ready_synthesizer()
@@ -686,7 +690,17 @@ class StreamingConversation(Generic[OutputDeviceType]):
                 len(chunk_result.chunk) / chunk_size
             )
             seconds_spoken = chunk_idx * seconds_per_chunk
-            if stop_event.is_set():
+            if self.transcriber.get_transcriber_config().experimental:
+                if stop_event.is_set() or self.is_human_speaking:
+                    self.logger.debug(
+                        "Interrupted, stopping text to speech after {} chunks".format(
+                            chunk_idx
+                        )
+                    )
+                    message_sent = f"{synthesis_result.get_message_up_to(seconds_spoken)}-"
+                    cut_off = True
+                    break    
+            elif stop_event.is_set():
                 self.logger.debug(
                     "Interrupted, stopping text to speech after {} chunks".format(
                         chunk_idx
