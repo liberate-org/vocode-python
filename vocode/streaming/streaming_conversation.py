@@ -831,7 +831,7 @@ class StreamingConversation(Generic[OutputDeviceType]):
         self.mark_last_agent_response()
         self.logger.debug("end spoofing re-engagement")
 
-    def __load_remote_audio(self, audio_url: str, chunk_size = 16000):
+    def __load_remote_audio(self, audio_url: str, chunk_size = 8000):
         """loads remote wav file and returns the bytes in specified chunk size.
         Bytes are converted to 8000hz and mulaw encoded per Twilio spec"""
 
@@ -886,9 +886,19 @@ class StreamingConversation(Generic[OutputDeviceType]):
                     audio = audio_generator.__next__()
                 finally:
                     self.output_device.consume_nonblocking(audio)
-            await asyncio.sleep(1)
+            await asyncio.sleep(.5)
         self.output_device.clear_stream()
         self.logger.debug("end synthetic hold audio")
+       
+        resume_messages = hold_config.resume_messages
+        if resume_messages.__len__() > 0:
+            resume_message = resume_messages[random.randint(0, resume_messages.__len__() - 1)]
+            self.logger.debug(f"selected resume message: [{resume_message}]")
+            await self.say_something_to_caller(message=resume_message, is_interruptible=False)
+        else:
+            self.logger.debug("No resume messages for this tool.")
+            self.output_device.clear_stream()
+            self.logger.debug("end synthetic hold audio")
 
     def start_on_hold(self, hold_config: SyntheticHoldConfig):
         # sanity check
