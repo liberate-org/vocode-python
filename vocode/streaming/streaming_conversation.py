@@ -897,8 +897,6 @@ class StreamingConversation(Generic[OutputDeviceType]):
             await self.say_something_to_caller(message=resume_message, is_interruptible=False)
         else:
             self.logger.debug("No resume messages for this tool.")
-            self.output_device.clear_stream()
-            self.logger.debug("end synthetic hold audio")
 
     def start_on_hold(self, hold_config: SyntheticHoldConfig):
         # sanity check
