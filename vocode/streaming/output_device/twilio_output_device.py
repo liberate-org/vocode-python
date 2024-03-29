@@ -40,6 +40,13 @@ class TwilioOutputDevice(BaseOutputDevice):
         }
         self.queue.put_nowait(json.dumps(twilio_message))
 
+    def clear_stream(self):
+        twilio_message = {
+            "event": "clear",
+            "streamSid": self.stream_sid
+        }
+        self.queue.put_nowait(json.dumps(twilio_message))
+
     def maybe_send_mark_nonblocking(self, message_sent):
         mark_message = {
             "event": "mark",
