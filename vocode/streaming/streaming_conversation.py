@@ -831,7 +831,7 @@ class StreamingConversation(Generic[OutputDeviceType]):
         self.mark_last_agent_response()
         self.logger.debug("end spoofing re-engagement")
 
-    def __load_remote_audio(self, audio_url: str, chunk_size = 8000):
+    def __load_remote_audio(self, audio_url: str, chunk_size = 16000):
         """loads remote wav file and returns the bytes in specified chunk size.
         Bytes are converted to 8000hz and mulaw encoded per Twilio spec"""
 
