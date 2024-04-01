@@ -824,7 +824,7 @@ class StreamingConversation(Generic[OutputDeviceType]):
 
         self.logger.debug("start spoofing re-engagement")
         agent_reengage_interval = self.agent.get_agent_config().reengage_timeout
-        spoof_last_agent_interval = 1 if agent_reengage_interval > 1 else agent_reengage_interval * .75
+        spoof_last_agent_interval = 1 if agent_reengage_interval is not None and agent_reengage_interval > 1 else agent_reengage_interval * .75
         while self.is_caller_on_hold:
             self.mark_last_agent_response()
             await asyncio.sleep(spoof_last_agent_interval)
