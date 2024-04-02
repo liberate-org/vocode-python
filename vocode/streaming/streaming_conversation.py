@@ -553,6 +553,8 @@ class StreamingConversation(Generic[OutputDeviceType]):
              len(self.agent.get_agent_config().reengage_options) > 0)
         ):
             self.human_prompt_checker = asyncio.create_task(self.check_if_human_should_be_prompted())
+        else:
+            self.logger.debug(f"re-engagement disabled")
 
     async def send_initial_message(self, initial_message: BaseMessage):
         # TODO: configure if initial message is interruptible
