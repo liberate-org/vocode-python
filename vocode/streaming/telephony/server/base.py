@@ -102,8 +102,6 @@ class TelephonyServer:
         self.router.add_api_route("/recordings/{conversation_id}", self.recordings, methods=["GET", "POST"])
         self.logger.info(f"Set up recordings endpoint at https://{self.base_url}/recordings/{{conversation_id}}")
 
-        self.router.add_api_route("/configurations", self.get_telephony_configuration, "")
- 
     def events(self, request: Request):
         return Response()
 
