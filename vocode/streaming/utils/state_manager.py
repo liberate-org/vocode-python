@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING, Optional
 from vocode.streaming.models.message import BaseMessage
 from vocode.streaming.models.transcriber import EndpointingConfig
 from vocode.streaming.agent.base_agent import AgentResponseMessage
+from vocode.streaming.models.synthetic_hold import SyntheticHoldConfig
 
 if TYPE_CHECKING:
     from vocode.streaming.streaming_conversation import StreamingConversation
@@ -36,6 +37,21 @@ class ConversationStateManager:
 
     def unmute_agent(self):
         self._conversation.agent.is_muted = False
+
+    def mute_caller(self):
+        self._conversation.transcriber.is_muted = True
+
+    def unmute_caller(self):
+        self._conversation.transcriber.is_muted = False
+
+    def enable_synthetic_hold(self, synthetic_hold_config: SyntheticHoldConfig):
+        self._conversation.start_on_hold(hold_config=synthetic_hold_config)
+
+    def disable_synthetic_hold(self):
+        self._conversation.stop_on_hold()
+
+    def get_conversation(self):
+        return self._conversation
 
     async def terminate_conversation(self):
         await self._conversation.terminate()

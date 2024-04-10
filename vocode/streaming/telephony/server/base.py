@@ -101,7 +101,7 @@ class TelephonyServer:
 
         self.router.add_api_route("/recordings/{conversation_id}", self.recordings, methods=["GET", "POST"])
         self.logger.info(f"Set up recordings endpoint at https://{self.base_url}/recordings/{{conversation_id}}")
- 
+
     def events(self, request: Request):
         return Response()
 
@@ -191,6 +191,11 @@ class TelephonyServer:
             )
             await telephony_client.end_call(call_config.vonage_uuid)
         return {"id": conversation_id}
+
+    def get_telephony_configuration(self):
+        return {
+            "not": "implemented"
+        }
 
     def get_router(self) -> APIRouter:
         return self.router

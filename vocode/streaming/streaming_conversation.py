@@ -8,6 +8,9 @@ from typing import Any, Awaitable, Callable, Generic, Optional, Tuple, TypeVar, 
 import logging
 import time
 import typing
+import requests
+from io import BytesIO
+import random
 
 from vocode.streaming.action.worker import ActionsWorker
 
@@ -24,7 +27,10 @@ from vocode.streaming.models.transcript import (
 )
 from vocode.streaming.models.message import BaseMessage
 from vocode.streaming.models.transcriber import EndpointingConfig, TranscriberConfig
+from vocode.streaming.models.synthetic_hold import SyntheticHoldConfig
 from vocode.streaming.output_device.base_output_device import BaseOutputDevice
+from vocode.streaming.utils import convert_wav
+from vocode.streaming.utils import mp3_helper
 from vocode.streaming.utils.conversation_logger_adapter import wrap_logger
 from vocode.streaming.utils.events_manager import EventsManager
 from vocode.streaming.utils.goodbye_model import GoodbyeModel
@@ -286,6 +292,16 @@ class StreamingConversation(Generic[OutputDeviceType]):
                     "No filler audio available for synthesizer"
                 )
 
+        def send_on_hold_audio(self, audio: FillerAudio, agent_response_tracker: Optional[asyncio.Event]):
+            assert self.conversation.on_hold_audio_worker is not None
+            self.conversation.logger.debug(f"Sending {audio.message.text}")
+            event = self.interruptible_event_factory.create_interruptible_agent_response_event(
+                audio,
+                is_interruptible=audio.is_interruptible,
+                agent_response_tracker=agent_response_tracker,
+            )
+            self.conversation.on_hold_audio_worker.consume_nonblocking(event)
+
         async def process(self, item: InterruptibleAgentResponseEvent[AgentResponse]):
             if not self.conversation.synthesis_enabled:
                 self.conversation.logger.debug(
@@ -479,11 +495,13 @@ class StreamingConversation(Generic[OutputDeviceType]):
         self.is_human_speaking = False
         self.active = False
         self.mark_last_action_timestamp()
+        self.is_caller_on_hold = False
 
         self.check_for_idle_task: Optional[asyncio.Task] = None
         self.track_bot_sentiment_task: Optional[asyncio.Task] = None
 
         self.current_transcription_is_interrupt: bool = False
+        self.background_tasks = set()
 
         # tracing
         self.start_time: Optional[float] = None
@@ -539,6 +557,8 @@ class StreamingConversation(Generic[OutputDeviceType]):
              len(self.agent.get_agent_config().reengage_options) > 0)
         ):
             self.human_prompt_checker = asyncio.create_task(self.check_if_human_should_be_prompted())
+        else:
+            self.logger.debug(f"re-engagement disabled")
 
     async def send_initial_message(self, initial_message: BaseMessage):
         # TODO: configure if initial message is interruptible
@@ -808,27 +828,123 @@ class StreamingConversation(Generic[OutputDeviceType]):
                 if (last_human_touchpoint >= reengage_timeout) and (last_agent_touchpoint >= reengage_timeout):
                     reengage_statement = random.choice(reengage_options)
                     self.logger.debug(f"Prompting user with {reengage_statement}: no interaction has happened in {reengage_timeout} seconds")
-                    self.chunk_size = (
-                        get_chunk_size_per_second(
-                            self.synthesizer.get_synthesizer_config().audio_encoding,
-                            self.synthesizer.get_synthesizer_config().sampling_rate,
-                        )
-                        * TEXT_TO_SPEECH_CHUNK_SIZE_SECONDS
-                    )
-                    message = BaseMessage(text=reengage_statement)
-                    synthesis_result = await self.synthesizer.create_speech(
-                        message,
-                        self.chunk_size,
-                        bot_sentiment=self.bot_sentiment,
-                    )
-                    self.agent_responses_worker.produce_interruptible_agent_response_event_nonblocking(
-                        (message, synthesis_result),
-                        is_interruptible=True,
-                        agent_response_tracker=asyncio.Event(),
-                    )
+                    self.__say_something_to_caller(message=reengage_statement, is_interruptible=True)
                     self.mark_last_agent_response()
                 await asyncio.sleep(2.5)
             else:
                 await asyncio.sleep(1)
         self.logger.debug("stopped check if human should be prompted")
-        
+
+    async def __spoof_reengagement_coroutine(self):
+        """prevents the agent from attempting re-engagement while synthetic hold in place"""
+
+        self.logger.debug("start spoofing re-engagement")
+        agent_reengage_interval = self.agent.get_agent_config().reengage_timeout
+        if agent_reengage_interval is not None and agent_reengage_interval < 1:
+            spoof_last_agent_interval = agent_reengage_interval * .75
+        else:
+            spoof_last_agent_interval = 1
+        while self.is_caller_on_hold:
+            self.mark_last_agent_response()
+            await asyncio.sleep(spoof_last_agent_interval)
+        self.mark_last_agent_response()
+        self.logger.debug("end spoofing re-engagement")
+
+    def __load_remote_audio(self, audio_url: str, chunk_size = 16000):
+        """loads remote wav file and returns the bytes in specified chunk size.
+        Bytes are converted to 8000hz and mulaw encoded per Twilio spec"""
+
+        # get audio content into memory
+        converted_bytes = None
+        try:
+            if audio_url.lower().endswith(".mp3"):
+                audio_bytes = requests.get(audio_url).content
+                wav_bytes = mp3_helper.decode_mp3(audio_bytes)
+                converted_bytes = convert_wav(file=wav_bytes, output_sample_rate=8000, output_encoding="mulaw")
+            elif audio_url.lower().endswith(".wav"):
+                audio_bytes = requests.get(audio_url).content
+                converted_bytes = convert_wav(file=BytesIO(wav_bytes), output_sample_rate=8000, output_encoding="mulaw")
+            else:
+                self.logger.error(f"unsupported file extension")
+        except Exception as err:
+            self.logger.error(f"Unable to parse [{audio_url}]. {err}")
+
+        if converted_bytes is None:
+            return
+
+        # generate chunks
+        pnt = 0
+        while pnt + chunk_size < converted_bytes.__len__():
+            yield converted_bytes[pnt:pnt+chunk_size]
+            pnt = pnt + chunk_size
+        yield converted_bytes[pnt:]
+
+    async def __hold_audio_coroutine(self, *, hold_config: SyntheticHoldConfig):
+        """loads audio hosted at provided url and streams chunks to output device
+        Currently you MUST use Twilio as output_device to get hold audio"""
+
+        self.logger.debug("start synthetic hold")
+        audio_generator = None
+        if hold_config.audio_url is not None:
+            # test generator for initial chunk
+            audio_generator = self.__load_remote_audio(hold_config.audio_url)
+            try:
+                audio = audio_generator.__next__()
+                self.output_device.consume_nonblocking(audio)
+            except StopIteration:
+                self.logger.error("No initial audio chunk received, no hold music will be played.")
+                audio_generator = None
+
+        while self.is_caller_on_hold:
+            if audio_generator is not None:
+                try:
+                    audio = audio_generator.__next__()
+                except StopIteration:
+                    # reload
+                    audio_generator = self.__load_remote_audio(hold_config.audio_url)
+                    audio = audio_generator.__next__()
+                finally:
+                    self.output_device.consume_nonblocking(audio)
+            await asyncio.sleep(1)
+        self.output_device.clear_stream()
+        self.logger.debug("end synthetic hold audio")
+
+    def start_on_hold(self, hold_config: SyntheticHoldConfig):
+        # sanity check
+        if not hold_config.enabled:
+            self.logger.debug("hold_config set to enabled=False")
+            return
+        self.is_caller_on_hold = True
+        # keep agent quiet
+        reengagement_handle = asyncio.create_task(self.__spoof_reengagement_coroutine())
+        self.background_tasks.add(reengagement_handle)
+        reengagement_handle.add_done_callback(self.background_tasks.discard)
+        # keep caller entertained
+        audio_handle = asyncio.create_task(self.__hold_audio_coroutine(hold_config=hold_config))
+        self.background_tasks.add(audio_handle)
+        audio_handle.add_done_callback(self.background_tasks.discard)
+
+    def stop_on_hold(self):
+        self.is_caller_on_hold = False
+
+    async def say_something_to_caller(self, message: str, is_interruptible: bool = True):
+        """Synthesize and send a message."""
+        self.logger.debug(f"Saying to caller: \"{message}\"")
+        self.chunk_size = (
+            get_chunk_size_per_second(
+                self.synthesizer.get_synthesizer_config().audio_encoding,
+                self.synthesizer.get_synthesizer_config().sampling_rate,
+            )
+            * TEXT_TO_SPEECH_CHUNK_SIZE_SECONDS
+        )
+        message = BaseMessage(text=message)
+        synthesis_result = await self.synthesizer.create_speech(
+            message,
+            self.chunk_size,
+            bot_sentiment=self.bot_sentiment,
+        )
+        self.agent_responses_worker.produce_interruptible_agent_response_event_nonblocking(
+            (message, synthesis_result),
+            is_interruptible=is_interruptible,
+            agent_response_tracker=asyncio.Event(),
+        )

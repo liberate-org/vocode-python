@@ -7,7 +7,6 @@ import logging
 import random
 from typing import (
     AsyncGenerator,
-    Generator,
     Generic,
     Optional,
     Tuple,
@@ -28,7 +27,6 @@ from vocode.streaming.models.actions import (
     ActionInput,
     ActionOutput,
     FunctionCall,
-    FunctionFragment,
 )
 
 from vocode.streaming.models.agent import (
