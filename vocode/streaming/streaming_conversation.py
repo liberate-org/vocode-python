@@ -427,7 +427,7 @@ class StreamingConversation(Generic[OutputDeviceType]):
         )
         self.output_device = output_device
         self.transcriber = transcriber
-        self.audio_stream_handler = AudioStreamHandler(conversation_id=self.id, transcriber=transcriber)
+        self.audio_stream_handler = AudioStreamHandler(conversation_id=self.id, transcriber=transcriber, logger=self.logger)
         self.agent = agent
         self.synthesizer = synthesizer
         self.synthesis_enabled = True

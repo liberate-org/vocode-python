@@ -7,11 +7,11 @@ from concurrent.futures import ThreadPoolExecutor
 class SileroVAD:
     INT16_NORM_CONST = 32768.0
 
-    def __init__(self, sample_rate: int, window_size: int, threshold: float = 0.5):
+    def __init__(self, sample_rate: int, window_size: int, logger: logging.Logger, threshold: float = 0.5):
         # Silero VAD is optimized for performance on single CPU thread
         torch.set_num_threads(1)
 
-        self.logger = logging.getLogger(__name__)
+        self.logger = logger
         self.model = None
         self.sample_rate = sample_rate
         self.threshold = threshold

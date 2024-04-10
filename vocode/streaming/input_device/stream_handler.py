@@ -15,10 +15,10 @@ class AudioStreamHandler:
     VAD_SPEECH_PAD_MS = 192
     VAD_SPEECH_MIN_DURATION_MS = 64
 
-    def __init__(self, conversation_id: str, transcriber: BaseTranscriber):
+    def __init__(self, conversation_id: str, transcriber: BaseTranscriber, logger: logging.Logger):
         self.conversation_id = conversation_id
         self.audio_buffer = []  # Buffer for storing audio chunks
-        self.logger = logging.getLogger(__name__)  # Set up logging
+        self.logger = logger
         self.transcriber = transcriber
         self.audio_buffer_denoised = []
         self.frame_buffer = bytearray()
@@ -27,6 +27,7 @@ class AudioStreamHandler:
             self.vad_wrapper = SileroVAD(
                 sample_rate=self.VAD_SAMPLE_RATE,
                 window_size=self.VAD_FRAME_SIZE,
+                logger=self.logger
             )
             speech_pad_samples = int(self.VAD_SAMPLE_RATE * self.VAD_SPEECH_PAD_MS / 1000) * 2
             speech_min_samples = int(self.VAD_SAMPLE_RATE * self.VAD_SPEECH_MIN_DURATION_MS / 1000) * 2
