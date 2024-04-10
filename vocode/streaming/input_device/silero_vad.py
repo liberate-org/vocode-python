@@ -39,6 +39,7 @@ class SileroVAD:
         return model
     
     async def load_model_async(self, use_onnx: bool = False) -> torch.nn.Module:
+        self.logger.info("Loading VAD model asynchronously")
         loop = asyncio.get_running_loop()
         with ThreadPoolExecutor() as pool:
             model = await loop.run_in_executor(pool, self._load_model, use_onnx)
