@@ -12,11 +12,10 @@ class SileroVAD:
         torch.set_num_threads(1)
 
         self.logger = logging.getLogger(__name__)
-        self.model = self._load_model(use_onnx=False)
+        self.model = None
         self.sample_rate = sample_rate
         self.threshold = threshold
         self.window_size = window_size
-        self.model = None
 
     def _load_model(self, use_onnx: bool = False) -> torch.nn.Module:
         try:
