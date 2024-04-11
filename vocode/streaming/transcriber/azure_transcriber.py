@@ -50,6 +50,8 @@ class AzureTranscriber(BaseThreadAsyncTranscriber[AzureTranscriberConfig]):
             subscription=getenv("AZURE_SPEECH_KEY"),
             region=getenv("AZURE_SPEECH_REGION"),
         )
+        speech_config.set_property_by_name("OPENSSL_CONTINUE_ON_CRL_DOWNLOAD_FAILURE", "true")
+        speech_config.set_property_by_name("OPENSSL_DISABLE_CRL_CHECK", "true")
 
         speech_params = {
             "speech_config": speech_config,
