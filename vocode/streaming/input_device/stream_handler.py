@@ -15,10 +15,10 @@ class AudioStreamHandler:
     VAD_SPEECH_PAD_MS = 192
     VAD_SPEECH_MIN_DURATION_MS = 64
 
-    def __init__(self, conversation_id: str, transcriber: BaseTranscriber):
+    def __init__(self, conversation_id: str, transcriber: BaseTranscriber, logger: logging.Logger):
         self.conversation_id = conversation_id
         self.audio_buffer = []  # Buffer for storing audio chunks
-        self.logger = logging.getLogger(__name__)  # Set up logging
+        self.logger = logger
         self.transcriber = transcriber
         self.audio_buffer_denoised = []
         self.frame_buffer = bytearray()
@@ -27,6 +27,7 @@ class AudioStreamHandler:
             self.vad_wrapper = SileroVAD(
                 sample_rate=self.VAD_SAMPLE_RATE,
                 window_size=self.VAD_FRAME_SIZE,
+                logger=self.logger
             )
             speech_pad_samples = int(self.VAD_SAMPLE_RATE * self.VAD_SPEECH_PAD_MS / 1000) * 2
             speech_min_samples = int(self.VAD_SAMPLE_RATE * self.VAD_SPEECH_MIN_DURATION_MS / 1000) * 2
@@ -40,7 +41,13 @@ class AudioStreamHandler:
             self.vad_wrapper = None
         self.vad_triggered = False
 
-    def receive_audio(self, chunk: bytes):
+    async def post_init(self):
+        self.logger.info("Loading VAD model...")
+
+        if self.vad_wrapper is None:
+            self.vad_wrapper.model = await self.vad_wrapper.load_model_async()
+
+    async def receive_audio(self, chunk: bytes):
         # TODO: this might be blocking as hell(even though it is fast). Consider using a thread?
         if self.vad_wrapper is None:
             self.transcriber.send_audio(chunk)
@@ -52,12 +59,12 @@ class AudioStreamHandler:
                 output_sample_rate=self.VAD_SAMPLE_RATE,
             )
             self.frame_buffer.extend(prepared_chunk)
-            self.process_frame_buffer()
+            await self.process_frame_buffer()
 
-    def process_frame_buffer(self) -> None:
+    async def process_frame_buffer(self) -> None:
         while len(self.frame_buffer) >= self.VAD_FRAME_SIZE + self.offset_samples:  # 2 bytes per 16-bit sample
             frame_to_process = self.frame_buffer[self.offset_samples:self.offset_samples + self.VAD_FRAME_SIZE]
-            is_speech = self.vad_wrapper.process_chunk(frame_to_process)
+            is_speech = await self.vad_wrapper.process_chunk_async(frame_to_process)
             if is_speech:
                 if self.speech_min_frames < 2 or self.frame_buffer_is_speech[-(self.speech_min_frames - 1):].all():
                     # If the speech segment is long enough, trigger VAD and pad preceding frames with ones
