@@ -828,7 +828,7 @@ class StreamingConversation(Generic[OutputDeviceType]):
                 if (last_human_touchpoint >= reengage_timeout) and (last_agent_touchpoint >= reengage_timeout):
                     reengage_statement = random.choice(reengage_options)
                     self.logger.debug(f"Prompting user with {reengage_statement}: no interaction has happened in {reengage_timeout} seconds")
-                    self.say_something_to_caller(message=reengage_statement, is_interruptible=True)
+                    await self.say_something_to_caller(message=reengage_statement, is_interruptible=True)
                     self.mark_last_agent_response()
                 await asyncio.sleep(2.5)
             else:
