@@ -135,8 +135,17 @@ class TelephonyServer:
 
             conversation_id = create_conversation_id()
             await self.config_manager.save_config(conversation_id, call_config)
+            connection_twiml_input = {
+                "base_url": self.base_url, 
+                "call_id": conversation_id
+            }
+            if inbound_call_config.agent_config.answer_delay:
+                if connection_twiml_input["answer_delay"] > 8:
+                    self.logger.warn(f"Forcing 8 second answer delay because {connection_twiml_input["answer_delay"]} was too high.")
+                    connection_twiml_input["answer_delay"] = 8
+                connection_twiml_input["answer_delay"] = inbound_call_config.agent_config.answer_delay
             return self.templater.get_connection_twiml(
-                base_url=self.base_url, call_id=conversation_id
+                **connection_twiml_input
             )
 
         async def vonage_route(
