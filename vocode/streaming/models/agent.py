@@ -73,7 +73,8 @@ class AgentConfig(TypedModel, type=AgentType.BASE.value):
     track_bot_sentiment: bool = False
     actions: Optional[List[ActionConfig]] = None
     reengage_timeout: Optional[float] = None
-    reengage_options: Optional[List[str]] = None
+    reengage_options: Optional[List[str]] = None,
+    answer_delay: Optional[int] = None,
 
 
 class CutOffResponse(BaseModel):
