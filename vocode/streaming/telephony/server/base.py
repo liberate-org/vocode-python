@@ -141,7 +141,7 @@ class TelephonyServer:
             }
             if inbound_call_config.agent_config.answer_delay:
                 if connection_twiml_input["answer_delay"] > 8:
-                    self.logger.warn(f"Forcing 8 second answer delay because {connection_twiml_input["answer_delay"]} was too high.")
+                    self.logger.warn(f"Forcing 8 second answer delay because {connection_twiml_input['answer_delay']} was too high.")
                     connection_twiml_input["answer_delay"] = 8
                 connection_twiml_input["answer_delay"] = inbound_call_config.agent_config.answer_delay
             return self.templater.get_connection_twiml(
