@@ -17,7 +17,7 @@ class SileroVAD:
         self.threshold = threshold
         self.window_size = window_size
 
-    def _load_model(self, use_onnx: bool = False) -> torch.nn.Module:
+    def load_model(self, use_onnx: bool = False) -> torch.nn.Module:
         try:
             model, _ = torch.hub.load(
                 repo_or_dir='silero-vad',
@@ -37,21 +37,6 @@ class SileroVAD:
                 trust_repo=True
             )
         return model
-    
-    async def load_model_async(self, use_onnx: bool = False) -> torch.nn.Module:
-        self.logger.info("Loading VAD model asynchronously")
-        loop = asyncio.get_running_loop()
-        with ThreadPoolExecutor() as pool:
-            model = await loop.run_in_executor(pool, self._load_model, use_onnx)
-        return model
-
-    async def process_chunk_async(self, chunk: bytes) -> bool:
-        if self.model is None:
-            self.model = await self.load_model_async()
-        loop = asyncio.get_running_loop()
-        with ThreadPoolExecutor() as pool:
-            result = await loop.run_in_executor(pool, self.process_chunk, chunk)
-        return result
 
     def process_chunk(self, chunk: bytes) -> bool:
         if len(chunk) != self.window_size:
