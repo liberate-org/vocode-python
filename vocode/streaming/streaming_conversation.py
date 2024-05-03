@@ -427,7 +427,8 @@ class StreamingConversation(Generic[OutputDeviceType]):
         )
         self.output_device = output_device
         self.transcriber = transcriber
-        self.audio_stream_handler = AudioStreamHandler(conversation_id=self.id, transcriber=transcriber, logger=self.logger)
+        # self.audio_stream_handler = AudioStreamHandler(conversation_id=self.id, transcriber=transcriber, logger=self.logger)
+        self.audio_stream_handler = None
         self.agent = agent
         self.synthesizer = synthesizer
         self.synthesis_enabled = True
@@ -539,6 +540,10 @@ class StreamingConversation(Generic[OutputDeviceType]):
         if initial_message:
             asyncio.create_task(self.send_initial_message(initial_message))
         self.agent.attach_transcript(self.transcript)
+
+        self.audio_stream_handler = self.audio_stream_handler = AudioStreamHandler(conversation_id=self.id, transcriber=self.transcriber, logger=self.logger)
+        await self.audio_stream_handler.post_init()
+
         if mark_ready:
             await mark_ready()
         if self.synthesizer.get_synthesizer_config().sentiment_config:
@@ -811,6 +816,7 @@ class StreamingConversation(Generic[OutputDeviceType]):
             self.logger.debug("Terminating actions worker")
             self.actions_worker.terminate()
         self.logger.debug("Successfully terminated")
+        self.audio_stream_handler.terminate()
 
     def is_active(self):
         return self.active

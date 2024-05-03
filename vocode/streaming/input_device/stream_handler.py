@@ -1,7 +1,8 @@
 import logging
 import os
 import wave
-
+from concurrent.futures import ThreadPoolExecutor
+import asyncio
 import numpy as np
 
 from vocode.streaming.input_device.silero_vad import SileroVAD
@@ -19,6 +20,7 @@ class AudioStreamHandler:
         self.conversation_id = conversation_id
         self.audio_buffer = []  # Buffer for storing audio chunks
         self.logger = logger
+        self.executor = ThreadPoolExecutor(max_workers=2)
         self.transcriber = transcriber
         self.audio_buffer_denoised = []
         self.frame_buffer = bytearray()
@@ -44,27 +46,34 @@ class AudioStreamHandler:
     async def post_init(self):
         self.logger.info("Loading VAD model...")
 
-        if self.vad_wrapper is None:
-            self.vad_wrapper.model = await self.vad_wrapper.load_model_async()
+        if self.vad_wrapper is not None:
+            loop = asyncio.get_running_loop()
+            self.vad_wrapper.model = await loop.run_in_executor(
+                self.executor,
+                self.vad_wrapper.load_model
+            )
 
     async def receive_audio(self, chunk: bytes):
-        # TODO: this might be blocking as hell(even though it is fast). Consider using a thread?
         if self.vad_wrapper is None:
             self.transcriber.send_audio(chunk)
         else:
-            prepared_chunk = prepare_audio_for_vad(
-                input_audio=chunk,
-                input_sample_rate=self.transcriber.transcriber_config.input_device_config.sampling_rate,
-                input_encoding=self.transcriber.transcriber_config.input_device_config.audio_encoding.value,
-                output_sample_rate=self.VAD_SAMPLE_RATE,
+            loop = asyncio.get_running_loop()
+            prepared_chunk = await loop.run_in_executor(
+                self.executor,
+                prepare_audio_for_vad,
+                chunk,
+                self.transcriber.transcriber_config.input_device_config.sampling_rate,
+                self.VAD_SAMPLE_RATE,
+                self.transcriber.transcriber_config.input_device_config.audio_encoding.value,
             )
             self.frame_buffer.extend(prepared_chunk)
             await self.process_frame_buffer()
 
     async def process_frame_buffer(self) -> None:
+        loop = asyncio.get_running_loop()
         while len(self.frame_buffer) >= self.VAD_FRAME_SIZE + self.offset_samples:  # 2 bytes per 16-bit sample
             frame_to_process = self.frame_buffer[self.offset_samples:self.offset_samples + self.VAD_FRAME_SIZE]
-            is_speech = await self.vad_wrapper.process_chunk_async(frame_to_process)
+            is_speech = await loop.run_in_executor(self.executor, self.vad_wrapper.process_chunk, frame_to_process)
             if is_speech:
                 if self.speech_min_frames < 2 or self.frame_buffer_is_speech[-(self.speech_min_frames - 1):].all():
                     # If the speech segment is long enough, trigger VAD and pad preceding frames with ones
@@ -110,36 +119,7 @@ class AudioStreamHandler:
         for i in np.where(frame_buffer_windows.all(axis=1))[0]:
             result[i:i + self.speech_min_frames] = True
         return result
-
-    # def __save_audio(self, audio_buffer, output_path):
-    #     with wave.open(output_path, 'wb') as wf:
-    #         wf.setnchannels(1)
-    #         wf.setsampwidth(2)
-    #         wf.setframerate(8000)
-    #         wf.writeframes(b''.join(audio_buffer))
-
-    # def save_debug_audios(self):
-    #     output_path = os.environ.get("DEBUG_AUDIO_PATH", None)
-    #     if not output_path:
-    #         self.logger.info("DEBUG_AUDIO_PATH not set, not saving debug audios.")
-    #         return
-
-    #     if not os.path.exists(output_path):
-    #         os.mkdir(output_path)
-
-    #     # Save the audio buffer to a file if it doesn't exist
-    #     raw_output_path = output_path + f"/{self.conversation_id}_raw.wav"
-    #     if not os.path.exists(raw_output_path):
-    #         self.__save_audio(self.audio_buffer, raw_output_path)
-    #         self.logger.info(f"Saved {raw_output_path}")
-    #     else:
-    #         self.logger.info(f"File {raw_output_path} already exists, not overwriting.")
-
-    #     # Save the denoised audio buffer to a file if it doesn't exist
-    #     if len(self.audio_buffer_denoised) > 0:
-    #         denoised_output_path = output_path + f"/{self.conversation_id}_denoised.wav"
-    #         if not os.path.exists(denoised_output_path):
-    #             self.__save_audio(self.audio_buffer_denoised, denoised_output_path)
-    #             self.logger.info(f"Saved {denoised_output_path}.")
-    #         else:
-    #             self.logger.info(f"File {denoised_output_path} already exists, not overwriting.")
+    
+    def terminate(self):
+        self.logger.info("Shutting down Thread executor....")
+        self.executor.shutdown(wait=False)
