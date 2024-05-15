@@ -141,7 +141,10 @@ class StreamingConversation(Generic[OutputDeviceType]):
             if transcription.message.strip() == "":
                 self.conversation.logger.info("Ignoring empty transcription")
                 return
-            elif transcription.message.strip() == "<INTERRUPT>" and transcription.confidence == 1.0:
+            else:
+                self.conversation.mark_last_final_transcript_from_human()
+            if transcription.message.strip() == "<INTERRUPT>" and transcription.confidence == 1.0:
+                self.conversation.logger.info(f"*************** SpeechStarted Interrupt ***************")
                 if self.conversation.transcriber.get_transcriber_config().experimental:
                     self.conversation.is_human_speaking = True
                     self.conversation.mark_last_final_transcript_from_human()
@@ -150,12 +153,8 @@ class StreamingConversation(Generic[OutputDeviceType]):
                 else:
                     return
 
-            if transcription.is_final:
-                self.conversation.logger.debug(
-                    "Got transcription: {}, confidence: {}".format(
-                        transcription.message, transcription.confidence
-                    )
-                )
+            # If the human is not speaking but there is an interrupt,
+            # we should send the interrupt to the agent and log that the human is speaking
             if (
                 not self.conversation.is_human_speaking
                 and self.conversation.is_interrupt(transcription)
@@ -170,9 +169,19 @@ class StreamingConversation(Generic[OutputDeviceType]):
             transcription.is_interrupt = (
                 self.conversation.current_transcription_is_interrupt
             )
-            self.conversation.is_human_speaking = not transcription.is_final
+            # self.conversation.is_human_speaking = not transcription.is_final
+
+            # if this is the final transcript, log out data
+            # create a new event and put it on the queue
+            # set last human utterance time and reset `is_human_speaking` boolean
             if transcription.is_final:
                 # we use getattr here to avoid the dependency cycle between VonageCall and StreamingConversation
+                self.conversation.logger.debug(f"*************** Transcript is final ***************")
+                self.conversation.logger.debug(
+                    "Got transcription: {}, confidence: {}".format(
+                        transcription.message, transcription.confidence
+                    )
+                )                
                 event = self.interruptible_event_factory.create_interruptible_event(
                     TranscriptionAgentInput(
                         transcription=transcription,
@@ -183,9 +192,10 @@ class StreamingConversation(Generic[OutputDeviceType]):
                 )
                 self.output_queue.put_nowait(event)
                 self.conversation.mark_last_final_transcript_from_human()
-            # else:
-            #     self.kill_tasks_when_human_is_talking()
-            #     self.conversation.broadcast_interrupt()
+                self.conversation.is_human_speaking = False
+            else:
+                self.kill_tasks_when_human_is_talking()
+                self.conversation.broadcast_interrupt()
 
     class FillerAudioWorker(InterruptibleAgentResponseWorker):
         """
