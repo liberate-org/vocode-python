@@ -150,7 +150,7 @@ class StreamingConversation(Generic[OutputDeviceType]):
             # send interrupt and mark message as last time the human spoke
             if transcription.message.strip() == "<INTERRUPT>" and transcription.confidence == 1.0:
                 if self.conversation.transcriber.get_transcriber_config().experimental:
-                    self.conversation.is_human_speaking = True
+                    # self.conversation.is_human_speaking = True
                     self.conversation.mark_last_final_transcript_from_human()
                     self.conversation.broadcast_interrupt()
                     return
@@ -195,7 +195,7 @@ class StreamingConversation(Generic[OutputDeviceType]):
                 )
                 self.output_queue.put_nowait(event)
                 self.conversation.mark_last_final_transcript_from_human()
-                self.conversation.is_human_speaking = False
+                # self.conversation.is_human_speaking = False
             else:
                 self.kill_tasks_when_human_is_talking()
                 self.conversation.broadcast_interrupt()
