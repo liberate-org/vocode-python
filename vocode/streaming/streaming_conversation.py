@@ -138,13 +138,17 @@ class StreamingConversation(Generic[OutputDeviceType]):
 
         async def process(self, transcription: Transcription):
             self.conversation.mark_last_action_timestamp()
+            # If the message was empty (silence), we ignore it
             if transcription.message.strip() == "":
                 self.conversation.logger.info("Ignoring empty transcription")
                 return
+            # otherwise mark the message as last time the human spoke
             else:
                 self.conversation.mark_last_final_transcript_from_human()
+            # special case where the human interrupts the bot
+            # this is only enabled in experimental mode (though this should be relooked)
+            # send interrupt and mark message as last time the human spoke
             if transcription.message.strip() == "<INTERRUPT>" and transcription.confidence == 1.0:
-                self.conversation.logger.info(f"*************** SpeechStarted Interrupt ***************")
                 if self.conversation.transcriber.get_transcriber_config().experimental:
                     self.conversation.is_human_speaking = True
                     self.conversation.mark_last_final_transcript_from_human()
@@ -176,7 +180,6 @@ class StreamingConversation(Generic[OutputDeviceType]):
             # set last human utterance time and reset `is_human_speaking` boolean
             if transcription.is_final:
                 # we use getattr here to avoid the dependency cycle between VonageCall and StreamingConversation
-                self.conversation.logger.debug(f"*************** Transcript is final ***************")
                 self.conversation.logger.debug(
                     "Got transcription: {}, confidence: {}".format(
                         transcription.message, transcription.confidence
