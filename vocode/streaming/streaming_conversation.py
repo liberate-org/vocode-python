@@ -171,8 +171,8 @@ class StreamingConversation(Generic[OutputDeviceType]):
                 )
                 if self.conversation.current_transcription_is_interrupt:
                     self.conversation.logger.debug("sending interrupt")
-                self.conversation.logger.debug("Human started speaking")
-                self.conversation.is_human_speaking = True
+                # self.conversation.logger.debug("Human started speaking")
+                # self.conversation.is_human_speaking = True
 
             transcription.is_interrupt = (
                 self.conversation.current_transcription_is_interrupt
