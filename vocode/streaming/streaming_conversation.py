@@ -154,12 +154,11 @@ class StreamingConversation(Generic[OutputDeviceType]):
             # If the message was empty (silence), we ignore it
             elif transcription.message.strip() == "":
                 self.conversation.logger.info("Ignoring empty transcription")
-                self.conversation.is_human_speaking = False
-                # return
+                return
             # otherwise mark the message as last time the human spoke
             else:
                 self.conversation.mark_last_final_transcript_from_human()
-                self.conversation.is_human_speaking = True
+                # self.conversation.is_human_speaking = True
             # If the human is not speaking but there is an interrupt,
             # we should send the interrupt to the agent and log that the human is speaking
             # case: this happens when there is an agent speaking and the human needs to interrupt them.
