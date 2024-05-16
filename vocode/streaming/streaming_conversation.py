@@ -195,10 +195,10 @@ class StreamingConversation(Generic[OutputDeviceType]):
                 )
                 self.output_queue.put_nowait(event)
                 self.conversation.mark_last_final_transcript_from_human()
-                # self.conversation.is_human_speaking = False
-            else:
-                self.kill_tasks_when_human_is_talking()
-                self.conversation.broadcast_interrupt()
+                self.conversation.is_human_speaking = False
+            # else:
+            #     self.kill_tasks_when_human_is_talking()
+            #     self.conversation.broadcast_interrupt()
 
     class FillerAudioWorker(InterruptibleAgentResponseWorker):
         """
