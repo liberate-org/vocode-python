@@ -142,17 +142,15 @@ class StreamingConversation(Generic[OutputDeviceType]):
             # this is only enabled in experimental mode (though this should be relooked)
             # send interrupt and mark message as last time the human spoke
             if transcription.message.strip() == "<INTERRUPT>" and transcription.confidence == 1.0:
-                # print("Human speaking interrupt")
-                # # if self.conversation.transcriber.get_transcriber_config().experimental:
-                    # print("In experimental")
+                if self.conversation.transcriber.get_transcriber_config().experimental:
                     self.conversation.is_human_speaking = True
                     self.conversation.mark_last_final_transcript_from_human()
                     self.conversation.broadcast_interrupt()
                     return
-                # else:
-                #     return
+                else:
+                    return
             # If the message was empty (silence), we ignore it
-            elif transcription.message.strip() == "":
+            if transcription.message.strip() == "":
                 self.conversation.logger.info("Ignoring empty transcription")
                 return
             # otherwise mark the message as last time the human spoke
@@ -171,13 +169,11 @@ class StreamingConversation(Generic[OutputDeviceType]):
                 )
                 if self.conversation.current_transcription_is_interrupt:
                     self.conversation.logger.debug("sending interrupt")
-                # self.conversation.logger.debug("Human started speaking")
-                # self.conversation.is_human_speaking = True
 
             transcription.is_interrupt = (
                 self.conversation.current_transcription_is_interrupt
             )
-            # self.conversation.is_human_speaking = not transcription.is_final
+            self.conversation.is_human_speaking = not transcription.is_final
 
             # if this is the final transcript, log out data
             # create a new event and put it on the queue
