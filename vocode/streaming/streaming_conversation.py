@@ -174,7 +174,6 @@ class StreamingConversation(Generic[OutputDeviceType]):
                 self.conversation.current_transcription_is_interrupt
             )
             self.conversation.is_human_speaking = not transcription.is_final
-
             # if this is the final transcript, log out data
             # create a new event and put it on the queue
             # set last human utterance time and reset `is_human_speaking` boolean
@@ -195,7 +194,6 @@ class StreamingConversation(Generic[OutputDeviceType]):
                 )
                 self.output_queue.put_nowait(event)
                 self.conversation.mark_last_final_transcript_from_human()
-                self.conversation.is_human_speaking = False
             # else:
             #     self.kill_tasks_when_human_is_talking()
             #     self.conversation.broadcast_interrupt()
