@@ -148,6 +148,7 @@ class StreamingConversation(Generic[OutputDeviceType]):
                     self.conversation.broadcast_interrupt()
                     return
                 else:
+                    self.conversation.mark_last_final_transcript_from_human()
                     return
             # If the message was empty (silence), we ignore it
             if transcription.message.strip() == "":
