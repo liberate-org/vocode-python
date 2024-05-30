@@ -148,6 +148,8 @@ class StreamingConversation(Generic[OutputDeviceType]):
                     self.conversation.broadcast_interrupt()
                     return
                 else:
+                    self.conversation.logger.info("Human is still speaking....")
+                    self.conversation.mark_last_final_transcript_from_human()
                     return
             # If the message was empty (silence), we ignore it
             if transcription.message.strip() == "":
@@ -155,6 +157,7 @@ class StreamingConversation(Generic[OutputDeviceType]):
                 return
             # otherwise mark the message as last time the human spoke
             else:
+                self.conversation.logger.info("Human is still speaking....")
                 self.conversation.mark_last_final_transcript_from_human()
                 # self.conversation.is_human_speaking = True
             # If the human is not speaking but there is an interrupt,

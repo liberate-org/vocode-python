@@ -40,6 +40,8 @@ async def collate_response_async(
     buffer = ""
     function_name_buffer = ""
     function_args_buffer = ""
+    tool_calls = []
+    has_seen_tool = False
     prev_ends_with_money = False
     async for token in gen:
         if not token:
@@ -73,6 +75,14 @@ async def collate_response_async(
                     buffer = ""
             prev_ends_with_money = ends_with_money
         elif isinstance(token, FunctionFragment):
+            if len(token.name) > 0:
+                has_seen_tool = True
+            if has_seen_tool and len(token.name) > 0 and len(function_name_buffer) > 0 and len(function_args_buffer) > 0:
+                if logger:
+                    logger.info(f"Second tool seen {token.name}")
+                tool_calls.append(FunctionCall(name=function_name_buffer, arguments=function_args_buffer))
+                function_name_buffer = ""
+                function_args_buffer = ""                
             function_name_buffer += token.name
             function_args_buffer += token.arguments
     to_return = buffer.strip()
@@ -82,8 +92,12 @@ async def collate_response_async(
                 time.time() - start_token_processing,
                 to_return)
         yield to_return
-    if function_name_buffer and get_functions:
-        yield FunctionCall(name=function_name_buffer, arguments=function_args_buffer)
+    if has_seen_tool:
+        if logger:
+            logger.info(f"Adding tool {function_name_buffer}")
+        tool_calls.append(FunctionCall(name=function_name_buffer, arguments=function_args_buffer))
+    if len(tool_calls) > 0 and get_functions:
+        yield tool_calls[0]
 
 
 async def openai_get_tokens(gen) -> AsyncGenerator[Union[str, FunctionFragment], None]:
