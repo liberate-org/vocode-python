@@ -679,6 +679,7 @@ class StreamingConversation(Generic[OutputDeviceType]):
         return num_interrupts > 0
 
     def is_interrupt(self, transcription: Transcription):
+        self.logger.info(f"INTERRUPT: {transcription.confidence}")
         return transcription.confidence >= (
             self.transcriber.get_transcriber_config().min_interrupt_confidence or 0
         )
