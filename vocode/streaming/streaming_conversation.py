@@ -679,10 +679,11 @@ class StreamingConversation(Generic[OutputDeviceType]):
         return num_interrupts > 0
 
     def is_interrupt(self, transcription: Transcription):
-        self.logger.info(f"INTERRUPT: {transcription.confidence}")
-        return transcription.confidence >= (
+        is_interrupt = transcription.confidence >= (
             self.transcriber.get_transcriber_config().min_interrupt_confidence or 0
         )
+        self.logger.info(f"INTERRUPT: {transcription.confidence} | {transcription.message} | was interrupt {is_interrupt}")
+        return is_interrupt
 
     @staticmethod
     def clear_queue(q: asyncio.Queue, queue_name: str):
