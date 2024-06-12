@@ -64,6 +64,8 @@ class TranscriberConfig(TypedModel, type=TranscriberType.BASE.value):
     input_device_config: Optional[InputDeviceConfig] = None
     vad: bool = False
     experimental: bool = False
+    utterance_end_ms: float = None
+    deepgram_endpoint_ms: float = None
 
     @validator("min_interrupt_confidence")
     def min_interrupt_confidence_must_be_between_0_and_1(cls, v):
@@ -78,6 +80,8 @@ class TranscriberConfig(TypedModel, type=TranscriberType.BASE.value):
         endpointing_config: Optional[EndpointingConfig] = None,
         vad: Optional[bool] = False,
         experimental: Optional[bool] = False,
+        utterance_end_ms: Optional[float] = None,
+        deepgram_endpoint_ms: Optional[float] = None,
         **kwargs,
     ):
         return cls(
@@ -87,6 +91,8 @@ class TranscriberConfig(TypedModel, type=TranscriberType.BASE.value):
             endpointing_config=endpointing_config,
             vad=vad,
             experimental=experimental,
+            utterance_end_ms=utterance_end_ms,
+            deepgram_endpoint_ms=deepgram_endpoint_ms,
             input_device_config=InputDeviceConfig(
                 sampling_rate=input_device.sampling_rate,
                 audio_encoding=input_device.audio_encoding
